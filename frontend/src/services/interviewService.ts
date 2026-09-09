@@ -56,19 +56,6 @@ export const interviewService = {
     }
   },
 
-  // Check backend status
-  checkBackendGroqStatus: async (): Promise<{ configured: boolean; masked_key?: string }> => {
-    try {
-      const res = await fetch('http://localhost:8000/api/groq/status', { signal: AbortSignal.timeout(2000) });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch {
-      // Backend not running or unreachable
-    }
-    return { configured: false };
-  },
-
   // Direct Groq API Client Call
   generateViaGroqDirect: async (
     apiKey: string,
@@ -116,6 +103,7 @@ STRICT CONSTRAINTS (MUST COMPLY):
    - "category": exactly one of ["JD Technical", "Resume Deep-Dive", "Experience & Architecture", "Behavioral & Leadership"]
    - "difficulty": "${difficultyBadge}"
    - "question": strictly 1 or 2 line question text
+   - "answer": comprehensive, high-scoring model answer that directly answers the question demonstrating deep subject mastery (2-4 clear sentences).
    - "rationale": 1 short sentence reason
    - "whatToLookFor": array of 2 short bullet points
    - "followUpProbe": 1 short follow-up line
@@ -134,6 +122,7 @@ Respond ONLY with valid JSON in this exact structure:
       "category": "JD Technical",
       "difficulty": "${difficultyBadge}",
       "question": "Short 1 or 2 line question text?",
+      "answer": "Clear, direct, and structured model answer explaining the exact technical solution or strategy.",
       "rationale": "Short 1-sentence rationale.",
       "whatToLookFor": ["Point 1", "Point 2"],
       "followUpProbe": "Short 1-line follow-up?"
@@ -217,39 +206,7 @@ ${params.candidateResume}`;
     const activeKey = params.apiKey || interviewService.getStoredApiKey();
     const chosenModel = params.model || interviewService.getStoredModel();
 
-    // 1. Try FastAPI Backend if available
-    try {
-      const backendRes = await fetch('http://localhost:8000/interview/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_title: params.jobTitle,
-          job_description: params.jobDescription,
-          candidate_name: params.candidateName,
-          candidate_resume: params.candidateResume,
-          candidate_experience: params.candidateExperience,
-          api_key: activeKey || null,
-          model: chosenModel
-        }),
-        signal: AbortSignal.timeout(15000)
-      });
-
-      if (backendRes.ok) {
-        const json = await backendRes.json();
-        if (json.data && json.data.questions && json.data.questions.length > 0) {
-          return {
-            ...json.data,
-            source: 'groq-llm',
-            model: chosenModel,
-            generatedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          };
-        }
-      }
-    } catch {
-      // Backend not running or timed out; try direct Groq API client
-    }
-
-    // 2. Direct Groq API call if user has an API Key
+    // Generate through Groq directly when the user supplies an API key.
     if (activeKey) {
       try {
         return await interviewService.generateViaGroqDirect(activeKey, params, chosenModel);
@@ -303,6 +260,7 @@ ${params.candidateResume}`;
         difficulty: difficultyBadge,
         question: `How have you structured and optimized ${primaryTech.toUpperCase()} applications in production to handle heavy load?`,
         rationale: `Assesses hands-on production depth with ${primaryTech.toUpperCase()} specified in the JD.`,
+        answer: `In high-load production environments with ${primaryTech.toUpperCase()}, I optimize critical paths by introducing distributed caching (e.g. Redis), connection pooling, asynchronous task processing, and payload compression. On the architectural level, I establish horizontal autoscaling rules, break monolithic bottlenecks into independent microservices, and configure CDN edge caching to ensure p99 response times stay sub-100ms.`,
         whatToLookFor: [
           `Concrete optimization tactics rather than generic definitions.`,
           `Awareness of lifecycle and state bottlenecks.`
@@ -315,6 +273,7 @@ ${params.candidateResume}`;
         difficulty: difficultyBadge,
         question: `How would you quickly adapt your existing skills to build and deploy within our ${gapTech.toUpperCase()} pipeline?`,
         rationale: `Evaluates technical agility and knowledge transferability for ${gapTech.toUpperCase()}.`,
+        answer: `I begin by thoroughly reviewing existing system architecture diagrams and deployment configuration scripts to map familiar design patterns onto ${gapTech.toUpperCase()}. Next, I create an isolated sandbox environment to run proof-of-concept pipelines, verify failure recovery mechanics, and pair-program with internal domain experts to align on established operational runbooks within the first two sprints.`,
         whatToLookFor: [
           `Structured methodology for learning new technology.`,
           `Confidence and honesty regarding technical boundaries.`
@@ -327,6 +286,7 @@ ${params.candidateResume}`;
         difficulty: difficultyBadge,
         question: `What was the most critical architectural decision or trade-off you made when delivering your ${secondaryTech.toUpperCase()} project?`,
         rationale: `Validates technical depth and ownership of achievements highlighted on ${params.candidateName}'s resume.`,
+        answer: `During our ${secondaryTech.toUpperCase()} initiative, our key trade-off was choosing eventual consistency over strict distributed locking to prioritize 99.99% write availability under traffic spikes. We introduced idempotent message consumers and a dead-letter queue recovery mechanism to safely reconcile transient discrepancies without degrading user responsiveness.`,
         whatToLookFor: [
           `Clear rationale defending trade-offs (e.g., complexity vs maintainability).`,
           `Clear articulation of personal contributions.`
@@ -345,6 +305,13 @@ ${params.candidateResume}`;
           ? `With ${exp} years under your belt, how do you balance writing reusable abstractions against keeping code easy to debug?`
           : `With ${exp} year(s) of experience, walk me through your step-by-step process for debugging an elusive production bug.`,
         rationale: `Calibrated specifically for ${difficulty} difficulty based on ${exp} years of tenure.`,
+        answer: exp >= 8
+          ? `I establish Architecture Decision Records (ADRs) and quantify technical debt in terms of delivery velocity and defect rate to gain executive buy-in. We carve out 20% of every sprint for debt remediation, using the Strangler Fig pattern to decommission legacy subsystems incrementally with zero downtime.`
+          : exp >= 5
+          ? `I implement defensive resiliency patterns including circuit breakers, exponential backoff with jitter, decoupled asynchronous queues, and automated graceful degradation. Critical paths fail back to cached or read-only states rather than cascading failures across dependent microservices.`
+          : exp >= 3
+          ? `I adhere strictly to Rule of Three: I duplicate simple, clear logic until the exact shared abstraction is proven necessary. I prioritize explicit data flow, single-responsibility functions, and descriptive error logs over deeply nested polymorphic inheritance.`
+          : `I isolate reproduction steps by analyzing structured application logs and distributed traces (APM). I write a failing unit/integration test reproducing the exact payload edge case, verify the root cause with breakpoints or telemetry, implement the minimal safe fix, and add regression tests before deploying.`,
         whatToLookFor: [
           `Depth matching ${difficulty} expectations.`,
           `Clear reasoning and real-world considerations.`
@@ -357,6 +324,7 @@ ${params.candidateResume}`;
         difficulty: difficultyBadge,
         question: `Describe a difficult technical disagreement you resolved with a teammate regarding system design or code standards.`,
         rationale: `Assesses collaborative decision making, empathy, and professional communication.`,
+        answer: `When a teammate and I differed on choosing between GraphQL vs REST for an upcoming API, we stepped back to document trade-offs against our specific mobile client bandwidth constraints and caching requirements. We created a small proof-of-concept, benchmarked latency under throttled network conditions, and mutually agreed on the option that demonstrably satisfied customer SLA metrics while reducing frontend maintenance overhead.`,
         whatToLookFor: [
           `Focus on objective metrics and user needs over personal ego.`,
           `Constructive alignment toward team success.`

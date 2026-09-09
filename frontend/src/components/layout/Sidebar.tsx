@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Briefcase, Calendar, FileBarChart, Settings, LogOut, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, Calendar, FileBarChart, LogOut, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/tw';
 import { useAuth } from '../../context/AuthContext';
@@ -18,7 +18,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { name: 'Candidates', href: '/candidates', icon: Users },
     { name: 'New Candidate Match', href: '/upload', icon: Sparkles, isHighlight: true },
     { name: 'Question Generation', href: '/jobs', icon: Briefcase },
-    { name: 'Settings', href: '#', icon: Settings },
   ];
 
   return (

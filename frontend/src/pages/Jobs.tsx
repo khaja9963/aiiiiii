@@ -29,7 +29,6 @@ import {
   ShieldCheck,
   CheckCircle
 } from 'lucide-react';
-import { mockJobs, sampleCandidatePresets } from '../services/mockData';
 import { candidateService } from '../services/candidateService';
 import { interviewService, DEFAULT_GROQ_MODEL } from '../services/interviewService';
 import { Job, Candidate, InterviewKit, InterviewQuestion } from '../types';
@@ -39,27 +38,21 @@ import { Card } from '../components/common/Card';
 
 export default function Jobs() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'generator'>('jobs');
-  const [jobs] = useState<Job[]>(mockJobs);
+  const [jobs] = useState<Job[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
 
-  // Groq API Settings State
+  // Groq API Key & Model State
   const [groqKey, setGroqKey] = useState<string>('');
-  const [inputGroqKey, setInputGroqKey] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_GROQ_MODEL);
-  const [showKeyDrawer, setShowKeyDrawer] = useState<boolean>(false);
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [keySavedNotification, setKeySavedNotification] = useState<string | null>(null);
-  const [backendConfigured, setBackendConfigured] = useState<boolean>(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Generator form state
-  const [selectedJobId, setSelectedJobId] = useState<number | 'custom'>(1);
+  const [selectedJobId, setSelectedJobId] = useState<number | 'custom'>('custom');
   const [customJobTitle, setCustomJobTitle] = useState('');
   const [customJobDescription, setCustomJobDescription] = useState('');
 
-  const [selectedCandidateMode, setSelectedCandidateMode] = useState<'existing' | 'preset' | 'custom'>('preset');
+  const [selectedCandidateMode, setSelectedCandidateMode] = useState<'existing' | 'custom'>('custom');
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | ''>('');
-  const [selectedPresetIndex, setSelectedPresetIndex] = useState<number>(0);
   const [customCandidateName, setCustomCandidateName] = useState('');
   const [candidateExperience, setCandidateExperience] = useState<number>(5);
   const [candidateResumeText, setCandidateResumeText] = useState('');
@@ -70,6 +63,7 @@ export default function Jobs() {
   const [generatedKit, setGeneratedKit] = useState<InterviewKit | null>(null);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('All');
   const [copiedQuestionId, setCopiedQuestionId] = useState<string | null>(null);
+  const [copiedAnswerId, setCopiedAnswerId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
 
   useEffect(() => {
@@ -77,21 +71,13 @@ export default function Jobs() {
     const storedKey = interviewService.getStoredApiKey();
     if (storedKey) {
       setGroqKey(storedKey);
-      setInputGroqKey(storedKey);
     }
     const storedModel = interviewService.getStoredModel();
     if (storedModel) {
       setSelectedModel(storedModel);
     }
 
-    // 2. Check Backend Groq Status
-    interviewService.checkBackendGroqStatus().then(status => {
-      if (status.configured) {
-        setBackendConfigured(true);
-      }
-    }).catch(() => {});
-
-    // 3. Load existing candidates if any
+    // Load existing candidates if any
     candidateService.getCandidates().then(res => {
       setCandidates(res.data);
       if (res.data.length > 0) {
@@ -99,49 +85,9 @@ export default function Jobs() {
         setSelectedCandidateId(res.data[0].id);
         setCandidateExperience(res.data[0].experience);
         setCandidateResumeText(res.data[0].summary || `${res.data[0].name} has ${res.data[0].experience} years of experience in ${res.data[0].skills.join(', ')}.`);
-      } else {
-        applyPreset(0);
       }
-    }).catch(() => {
-      applyPreset(0);
-    });
+    }).catch(() => {});
   }, []);
-
-  const handleSaveGroqKey = () => {
-    const trimmed = inputGroqKey.trim();
-    if (trimmed) {
-      interviewService.setStoredApiKey(trimmed);
-      setGroqKey(trimmed);
-      setKeySavedNotification('Groq API Key saved securely in your browser!');
-      setTimeout(() => setKeySavedNotification(null), 3000);
-      setShowKeyDrawer(false);
-      setGenerationError(null);
-    }
-  };
-
-  const handleClearGroqKey = () => {
-    interviewService.clearStoredApiKey();
-    setGroqKey('');
-    setInputGroqKey('');
-    setKeySavedNotification('Groq API Key removed.');
-    setTimeout(() => setKeySavedNotification(null), 3000);
-  };
-
-  const handleModelChange = (model: string) => {
-    setSelectedModel(model);
-    interviewService.setStoredModel(model);
-  };
-
-  const applyPreset = (index: number) => {
-    const preset = sampleCandidatePresets[index];
-    if (preset) {
-      setSelectedCandidateMode('preset');
-      setSelectedPresetIndex(index);
-      setCustomCandidateName(preset.name);
-      setCandidateExperience(preset.experience);
-      setCandidateResumeText(preset.resume);
-    }
-  };
 
   const handleSelectJob = (job: Job) => {
     setSelectedJobId(job.id);
@@ -155,7 +101,10 @@ export default function Jobs() {
         description: customJobDescription || 'Custom job description requirements.'
       };
     }
-    const found = jobs.find(j => j.id === selectedJobId) || jobs[0];
+    const found = jobs.find(j => j.id === selectedJobId);
+    if (!found) {
+      return { title: 'Custom Job Position', description: 'Enter a job description to generate questions.' };
+    }
     return {
       title: found.title,
       description: found.description || `Requirements: ${found.skills.join(', ')}. Minimum ${found.requiredExperience} years of experience.`
@@ -172,14 +121,6 @@ export default function Jobs() {
           resume: found.summary || `${found.name}'s resume highlights expertise in ${found.skills.join(', ')}.`
         };
       }
-    }
-    if (selectedCandidateMode === 'preset') {
-      const preset = sampleCandidatePresets[selectedPresetIndex] || sampleCandidatePresets[0];
-      return {
-        name: preset.name,
-        experience: candidateExperience,
-        resume: candidateResumeText || preset.resume
-      };
     }
     return {
       name: customCandidateName || 'Candidate',
@@ -233,9 +174,15 @@ export default function Jobs() {
     setTimeout(() => setCopiedQuestionId(null), 2000);
   };
 
+  const handleCopyAnswer = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedAnswerId(id);
+    setTimeout(() => setCopiedAnswerId(null), 2000);
+  };
+
   const handleCopyAll = () => {
     if (!generatedKit) return;
-    const content = `INTERVIEW QUESTIONS FOR ${generatedKit.candidateName.toUpperCase()} - ${generatedKit.jobTitle.toUpperCase()}
+    const content = `INTERVIEW ASSESSMENT KIT FOR ${generatedKit.candidateName.toUpperCase()} - ${generatedKit.jobTitle.toUpperCase()}
 Engine: ${generatedKit.source === 'groq-llm' ? `Groq LLM (${generatedKit.model || 'Llama 3.3'})` : 'Calibrated Algorithmic Model'}
 Experience: ${generatedKit.candidateExperience} Years
 Match Score: ${generatedKit.matchedScore}%
@@ -244,6 +191,10 @@ Date: ${generatedKit.generatedAt}
 ${generatedKit.questions.map((q, idx) => `
 Q${idx + 1} [${q.category}] (${q.difficulty})
 Question: ${q.question}
+
+Model Answer / Expected Solution:
+${q.answer || 'N/A'}
+
 Rationale: ${q.rationale}
 Key Evaluation Indicators:
 ${q.whatToLookFor.map(item => `  - ${item}`).join('\n')}
@@ -268,7 +219,7 @@ Follow-up Probe: ${q.followUpProbe}
     return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
   };
 
-  const isGroqActive = Boolean(groqKey || backendConfigured);
+  const isGroqActive = Boolean(groqKey);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
@@ -341,46 +292,47 @@ Follow-up Probe: ${q.followUpProbe}
             </div>
 
             <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Left Column: Job Description Setup */}
+              {/* Left Column: Job Role Selection Dropdown */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 pb-2 border-b border-white/10">
                   <Briefcase className="w-5 h-5 text-[#c084fc]" />
-                  <h3 className="font-bold text-white text-base">1. Select Target Job Description</h3>
+                  <h3 className="font-bold text-white text-base">1. Select Target Role</h3>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                    Choose Active Position
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Role Selection ({jobs.length} Available)</span>
+                    <span className="text-[#c084fc] font-normal lowercase">calibrated per role</span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {jobs.map((j) => (
-                      <button
-                        key={j.id}
-                        type="button"
-                        onClick={() => setSelectedJobId(j.id)}
-                        className={`p-3 text-left rounded-xl border text-xs font-medium transition-all ${
-                          selectedJobId === j.id
-                            ? 'bg-purple-500/20 border-[#a855f7] text-white ring-2 ring-purple-500/30 shadow-md font-bold'
-                            : 'bg-white/5 border-white/10 text-gray-300 hover:border-white/20 hover:text-white'
-                        }`}
-                      >
-                        <p className="font-bold truncate">{j.title}</p>
-                        <p className="text-gray-400 mt-1">{j.requiredExperience}+ Yrs</p>
-                      </button>
-                    ))}
-                  </div>
                   
-                  <button
-                    type="button"
-                    onClick={() => setSelectedJobId('custom')}
-                    className={`w-full p-2.5 text-center rounded-xl border text-xs font-medium transition-all ${
-                      selectedJobId === 'custom'
-                        ? 'bg-purple-500/20 border-[#a855f7] text-white ring-2 ring-purple-500/30 font-bold'
-                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    + Use Custom Job Title & Description
-                  </button>
+                  <div className="relative">
+                    <select
+                      value={selectedJobId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'custom') {
+                          setSelectedJobId('custom');
+                        } else {
+                          const id = Number(val);
+                          setSelectedJobId(id);
+                          const chosen = jobs.find(j => j.id === id);
+                          if (chosen) {
+                            setCandidateExperience(chosen.requiredExperience);
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-[rgba(10,5,18,0.85)] border border-white/15 rounded-2xl text-sm font-semibold text-white focus:border-[#a855f7] focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all cursor-pointer shadow-lg"
+                    >
+                      {jobs.map((j) => (
+                        <option key={j.id} value={j.id} className="bg-[#0e071a] text-white py-2">
+                          {j.title} ({j.requiredExperience}+ Yrs Exp)
+                        </option>
+                      ))}
+                      <option value="custom" className="bg-[#0e071a] text-[#c084fc] py-2">
+                        + Custom Job Role & Description
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
                 {selectedJobId === 'custom' ? (
@@ -407,12 +359,23 @@ Follow-up Probe: ${q.followUpProbe}
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2">
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-3">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-white">{getCurrentJobDetails().title}</span>
-                      <span className="text-[#c084fc] font-semibold">Active Role</span>
+                      <span className="font-bold text-white text-sm">{getCurrentJobDetails().title}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-[#c084fc] border border-purple-500/30 font-semibold text-[11px]">
+                        {jobs.find(j => j.id === selectedJobId)?.department || 'Engineering'}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-300 leading-relaxed max-h-24 overflow-y-auto">
+                    {jobs.find(j => j.id === selectedJobId)?.skills && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {jobs.find(j => j.id === selectedJobId)?.skills.map((skill, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] text-gray-300 font-medium">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-300 leading-relaxed max-h-24 overflow-y-auto pt-1 border-t border-white/5">
                       {getCurrentJobDetails().description}
                     </p>
                   </div>
@@ -442,15 +405,6 @@ Follow-up Probe: ${q.followUpProbe}
                     )}
                     <button
                       type="button"
-                      onClick={() => setSelectedCandidateMode('preset')}
-                      className={`flex-1 py-2 rounded-lg transition-all ${
-                        selectedCandidateMode === 'preset' ? 'bg-purple-600 text-white shadow-sm font-bold' : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      Preset Profiles
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setSelectedCandidateMode('custom')}
                       className={`flex-1 py-2 rounded-lg transition-all ${
                         selectedCandidateMode === 'custom' ? 'bg-purple-600 text-white shadow-sm font-bold' : 'text-gray-400 hover:text-white'
@@ -459,27 +413,6 @@ Follow-up Probe: ${q.followUpProbe}
                       Paste Resume
                     </button>
                   </div>
-
-                  {/* Preset Selector */}
-                  {selectedCandidateMode === 'preset' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {sampleCandidatePresets.map((p, idx) => (
-                        <button
-                          key={p.name}
-                          type="button"
-                          onClick={() => applyPreset(idx)}
-                          className={`p-2.5 text-left rounded-xl border text-xs transition-all ${
-                            selectedPresetIndex === idx
-                              ? 'bg-purple-500/20 border-[#a855f7] text-white font-bold ring-2 ring-purple-500/30'
-                              : 'bg-white/5 border-white/10 text-gray-300 hover:border-white/20 hover:text-white'
-                          }`}
-                        >
-                          <p className="truncate font-semibold">{p.name}</p>
-                          <p className="text-[10px] text-gray-400 font-normal">{p.experience} Yrs Exp</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
 
                   {/* Existing candidate dropdown */}
                   {selectedCandidateMode === 'existing' && candidates.length > 0 && (
@@ -767,13 +700,64 @@ Follow-up Probe: ${q.followUpProbe}
                         "{q.question}"
                       </p>
 
-                      {/* Concise Rationale hint */}
-                      {q.rationale && (
-                        <div className="text-xs text-gray-400 flex items-center gap-2 pt-1 border-t border-white/5">
-                          <Zap className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                          <span className="truncate"><strong className="text-gray-300">Rationale:</strong> {q.rationale}</span>
+                      {/* Expected / Model Answer */}
+                      {q.answer && (
+                        <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/25 space-y-1.5 shadow-inner">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                              <span>Model Answer / Expected Solution:</span>
+                            </span>
+                            <button
+                              onClick={() => handleCopyAnswer(q.id, q.answer!)}
+                              className="text-[11px] text-emerald-300 hover:text-emerald-100 flex items-center gap-1 font-medium transition-colors px-2 py-0.5 rounded hover:bg-emerald-500/10"
+                            >
+                              {copiedAnswerId === q.id ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span className="text-emerald-400">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy Answer</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed font-normal">
+                            {q.answer}
+                          </p>
                         </div>
                       )}
+
+                      {/* Key Evaluation Indicators */}
+                      {q.whatToLookFor && q.whatToLookFor.length > 0 && (
+                        <div className="text-xs text-gray-300 space-y-1 bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                          <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">Key Evaluation Indicators:</span>
+                          <ul className="list-disc list-inside space-y-0.5 text-gray-400">
+                            {q.whatToLookFor.map((item, i) => (
+                              <li key={i}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Concise Rationale & Follow-up probe */}
+                      <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5 text-xs text-gray-400">
+                        {q.rationale && (
+                          <div className="flex items-center gap-2">
+                            <Zap className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                            <span className="truncate"><strong className="text-gray-300">Rationale:</strong> {q.rationale}</span>
+                          </div>
+                        )}
+                        {q.followUpProbe && (
+                          <div className="flex items-center gap-2 text-purple-300/90">
+                            <ChevronRight className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                            <span><strong className="text-purple-200">Follow-up Probe:</strong> {q.followUpProbe}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 ))}

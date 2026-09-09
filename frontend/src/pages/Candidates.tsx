@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Eye, CheckCircle, XCircle, Users } from 'lucide-react';
+import { Search, Filter, Eye, CheckCircle, XCircle, Users, Sparkles } from 'lucide-react';
 import { candidateService } from '../services/candidateService';
 import { Candidate } from '../types';
 import { Button } from '../components/common/Button';
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Pagination } from '../components/common/Pagination';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { InterviewQuestionsPanel } from '../components/common/InterviewQuestionsPanel';
 
 export default function Candidates() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -19,6 +20,8 @@ export default function Candidates() {
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [generationRequested, setGenerationRequested] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,6 +78,11 @@ export default function Candidates() {
     } catch (err) {
       alert('Failed to update status');
     }
+  };
+
+  const handleGenerateQuestions = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setGenerationRequested(true);
   };
 
   // Pagination logic
@@ -152,72 +160,82 @@ export default function Candidates() {
           )}
         </div>
       ) : (
-        <div className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Candidate</TableHead>
-                <TableHead>Experience</TableHead>
-                <TableHead>Skills</TableHead>
-                <TableHead>Match</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedCandidates.map((candidate) => (
-                <TableRow key={candidate.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-semibold text-white">{candidate.name}</div>
-                      <div className="text-gray-400 text-xs mt-0.5">{candidate.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-gray-300 font-medium">{candidate.experience} yrs</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5 max-w-[220px]">
-                      {candidate.skills.slice(0, 3).map(skill => (
-                        <span key={skill} className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] font-semibold rounded-md">
-                          {skill}
-                        </span>
-                      ))}
-                      {candidate.skills.length > 3 && (
-                        <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-gray-300 text-[10px] font-semibold rounded-md">
-                          +{candidate.skills.length - 3}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`font-bold ${candidate.matchScore >= 85 ? 'text-emerald-400' : candidate.matchScore >= 70 ? 'text-amber-400' : 'text-gray-400'}`}>
-                      {candidate.matchScore}%
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={candidate.status} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/candidates/${candidate.id}`)} title="View Profile">
-                        <Eye className="w-4 h-4 text-gray-400 hover:text-[#c084fc]" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleStatusChange(candidate.id, 'Shortlisted')} title="Shortlist">
-                        <CheckCircle className="w-4 h-4 text-gray-400 hover:text-emerald-400" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleStatusChange(candidate.id, 'Rejected')} title="Reject">
-                        <XCircle className="w-4 h-4 text-gray-400 hover:text-red-400" />
-                      </Button>
-                    </div>
-                  </TableCell>
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)] gap-6 items-start">
+          <div className="overflow-hidden">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Sparkles className="w-4 h-4 text-[#c084fc]" />
+              <p className="text-xs text-gray-400">Candidates are ranked by highest match score.</p>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Candidate</TableHead>
+                  <TableHead>Experience</TableHead>
+                  <TableHead>Skills</TableHead>
+                  <TableHead>Match</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          
-          <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages || 1}
-            onPageChange={setCurrentPage}
+              </TableHeader>
+              <TableBody>
+                {paginatedCandidates.map((candidate) => (
+                  <TableRow key={candidate.id} className={selectedCandidate?.id === candidate.id ? 'bg-purple-500/10' : undefined}>
+                    <TableCell>
+                      <div>
+                        <div className="font-semibold text-white">{candidate.name}</div>
+                        <div className="text-gray-400 text-xs mt-0.5">{candidate.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-gray-300 font-medium">{candidate.experience} yrs</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5 max-w-[220px]">
+                        {candidate.skills.slice(0, 3).map(skill => (
+                          <span key={skill} className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] font-semibold rounded-md">
+                            {skill}
+                          </span>
+                        ))}
+                        {candidate.skills.length > 3 && (
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-gray-300 text-[10px] font-semibold rounded-md">
+                            +{candidate.skills.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`font-bold ${candidate.matchScore >= 85 ? 'text-emerald-400' : candidate.matchScore >= 70 ? 'text-amber-400' : 'text-gray-400'}`}>
+                        {candidate.matchScore}%
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={candidate.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/candidates/${candidate.id}`)} title="View Profile">
+                          <Eye className="w-4 h-4 text-gray-400 hover:text-[#c084fc]" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleStatusChange(candidate.id, 'Shortlisted')} title="Shortlist">
+                          <CheckCircle className="w-4 h-4 text-gray-400 hover:text-emerald-400" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleStatusChange(candidate.id, 'Rejected')} title="Reject">
+                          <XCircle className="w-4 h-4 text-gray-400 hover:text-red-400" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages || 1}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+          <InterviewQuestionsPanel
+            candidateName={selectedCandidate?.name}
+            generationRequested={generationRequested}
+            onGenerate={() => selectedCandidate && handleGenerateQuestions(selectedCandidate)}
           />
         </div>
       )}

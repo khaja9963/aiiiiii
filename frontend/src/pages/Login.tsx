@@ -21,25 +21,11 @@ export default function Login() {
       const response = await authService.login(data);
       login(response.data.token, response.data.user);
       navigate('/dashboard');
-    } catch (err) {
-      setAuthError('Invalid email or password. Please try again.');
+    } catch (err: any) {
+      setAuthError(err?.message || 'Enter a valid email address and password.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleDemoLogin = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      login('mock-jwt-token-12345', {
-        id: 1,
-        name: 'Demo Recruiter',
-        email: 'admin@example.com',
-        role: 'recruiter'
-      });
-      navigate('/dashboard');
-      setIsLoading(false);
-    }, 600);
   };
 
   return (
@@ -193,26 +179,6 @@ export default function Login() {
               )}
             </button>
 
-            {/* Divider */}
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-[#0d0716] text-gray-400 font-mono">OR QUICK ACCESS</span>
-              </div>
-            </div>
-
-            {/* One-Click Demo Login */}
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={isLoading}
-              className="w-full py-2.5 px-4 rounded-xl font-semibold text-sm text-[#c084fc] hover:text-white bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/60 shadow-[0_0_15px_rgba(168,85,247,0.15)] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-[#c084fc]" />
-              <span>Instant Recruiter Demo Login</span>
-            </button>
           </form>
 
           {/* Footer Register Link */}

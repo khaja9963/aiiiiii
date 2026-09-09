@@ -16,23 +16,13 @@ Modern, high-performance web interface for the AI Recruitment Portal. Built with
 npm install
 ```
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Default configuration:
-```env
-VITE_API_URL=http://localhost:8000
-```
-
-### 3. Run Development Server
+### 2. Run Development Server
 ```bash
 npm run dev
 ```
 The application will be available at `http://localhost:5173/`.
 
-### 4. Build for Production
+### 3. Build for Production
 ```bash
 npm run build
 ```

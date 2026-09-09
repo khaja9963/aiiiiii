@@ -1,12 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { UploadCloud, FileText, CheckCircle, ArrowRight, Sparkles, X, FileBadge } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { candidateService } from '../services/candidateService';
-import { Candidate } from '../types';
 
 export default function UploadMatch() {
-  const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Resume, 2: JD, 3: Processing
   const [resumeFiles, setResumeFiles] = useState<File[]>([]);
   const [jdFile, setJdFile] = useState<File | null>(null);
@@ -68,45 +64,8 @@ export default function UploadMatch() {
     if (step === 1 && resumeFiles.length > 0) setStep(2);
     else if (step === 2 && jdFile) {
       setStep(3);
-      simulateProcessing();
+      setProgress(0);
     }
-  };
-
-  const simulateProcessing = async () => {
-    let current = 0;
-    const interval = setInterval(() => {
-      current += Math.random() * 8 + 2;
-      if (current >= 100) current = 100;
-      setProgress(current);
-      if (current >= 100) {
-        clearInterval(interval);
-      }
-    }, 200);
-
-    // Mock delay for UI to show 100% processing for a moment
-    setTimeout(async () => {
-      const newCandidates: Candidate[] = resumeFiles.map((file, i) => ({
-        id: Math.floor(Math.random() * 10000),
-        name: file.name.split('.')[0].replace(/[-_]/g, ' '),
-        email: `${file.name.split('.')[0].toLowerCase()}@example.com`,
-        phone: '+1 (555) 000-0000',
-        location: 'Remote',
-        qualification: 'Bachelors Degree',
-        experience: Math.floor(Math.random() * 5) + 2,
-        skills: ['React', 'Node.js', 'TypeScript', 'AWS', 'Python', 'Machine Learning'].sort(() => 0.5 - Math.random()).slice(0, 4),
-        status: 'New',
-        matchScore: Math.floor(Math.random() * 20) + 75,
-        dateAdded: new Date().toISOString().split('T')[0],
-        summary: 'Auto-extracted candidate profile based on uploaded resume matched against the JD.',
-        resumeFile: file.name
-      }));
-
-      for (const candidate of newCandidates) {
-        await candidateService.addCandidate(candidate);
-      }
-
-      navigate('/candidates');
-    }, 4000);
   };
 
   // --- Animation Variants ---

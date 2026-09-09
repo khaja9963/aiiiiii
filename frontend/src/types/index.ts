@@ -67,6 +67,7 @@ export interface InterviewQuestion {
   difficulty: string;
   question: string;
   rationale: string;
+  answer?: string;
   whatToLookFor: string[];
   followUpProbe: string;
 }
